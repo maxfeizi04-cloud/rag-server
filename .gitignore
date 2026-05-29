@@ -1,0 +1,28 @@
+# === 编译产物 ===
+# Go 编译的二进制文件不提交，每个开发者/CI 在自己环境编译
+/bin/
+*.exe
+
+# === 密钥文件 ===
+# .env 包含数据库密码和 API Key，绝对不能提交
+.env
+
+# === 运行时数据目录 ===
+# data/ 是 Docker 挂载的持久化数据（数据库文件、上传文件、日志）
+/data/
+
+# === IDE 配置 ===
+.idea/
+.vscode/
+*.swp
+
+# === 操作系统临时文件 ===
+.DS_Store       # macOS
+Thumbs.db       # Windows
+
+# === 测试产物 ===
+*.test
+*.out
+
+# === Superpowers 工具目录 ===
+.superpowers/
