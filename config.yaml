@@ -1,0 +1,33 @@
+# ==========================================
+# 企业知识库问答系统 — 默认配置文件
+# ==========================================
+# 注意：数据库密码和 API Key 不要写在这里！
+# 通过环境变量 DB_PASSWORD 和 DEEPSEEK_API_KEY 注入
+
+server:
+  prot: 8080          # HTTP 监听端口
+  read_timeout: 30s   # 请求读取超时
+  write_timeout: 120s # 响应写入超时 (SSE 流式需要较长时间)
+
+database:
+  host: localhost     # 数据库地址
+  port: 5432          # 数据库端口
+  name: rag           # 数据库名称
+  user: rag_user      # 数据库用户
+  sslmode: disable    # 本地开发关闭 SSL
+  # password 通过环境变量 DB_PASSWORD 注入，不要写在这里
+
+deepseek:
+  base_url: https://api.deepseek.com      # DeepSeek API 地址（兼容 OpenAI 格式）
+  chat_model: deepseek-v4-pro             # 对话模型
+  embedding_model: text_embedding-3-small # Embedding 模型（1536 维向量）
+  max_tokens: 4096                        # 单次回答最大长度 (4K)
+  temperature: 0.3                        # 生成温度，知识问答建议低温度保证准确性
+  # api_key 通过环境变量 DEEPSEEK_API_KEY 注入
+
+rag:
+  chunk_size: 500           # 切片大小（tokens），中文约 400 字
+  chunk_overlap: 50         # 切片重叠（tokens），防止关键信息被截断
+  top_k: 5                  # 检索返回数量
+  similarity_threshold: 0.7 # 相似度阈值，低于此值的片段不纳入回答
+  max_history_rounds: 5     # 多轮对话保留最近 N 轮历史
