@@ -3,6 +3,7 @@ module rag-server
 go 1.26
 
 require (
+	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/openai/openai-go v1.12.0
 	github.com/spf13/viper v1.21.0
 )
