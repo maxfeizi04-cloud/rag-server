@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
 CREATE TABLE IF NOT EXISTS documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     kb_id UUID NOT NULL REFERENCES knowledge_bases(id) ON DELETE CASCADE,   -- 级联删除
-    file_name TEXT NOT NULL,                -- 原始文件名 (如: 员工手册.pdf)
+    filename TEXT NOT NULL,                -- 原始文件名 (如: 员工手册.pdf)
     file_type TEXT NOT NULL,                -- 文件类型: pdf, docx, md, txt
     file_size BIGINT NOT NULL DEFAULT 0,    -- 文件大小 (字节)
     status TEXT NOT NULL DEFAULT 'pending',  -- 处理状态

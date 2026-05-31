@@ -19,6 +19,6 @@ type Chunk struct {
 // 相比 Chunk 多了文档名和相似度分数
 type ChunkWithScore struct {
 	Chunk            // 嵌入 Chunk 结构体，包含所有基础字段
-	Score    float64 `json:"score"` // 余弦相似度分数(0~1,越高越相关)
+	Score    float64 `json:"score"`    // 余弦相似度分数(0~1,越高越相关)
 	Filename string  `json:"filename"` // 来源文档名
 }

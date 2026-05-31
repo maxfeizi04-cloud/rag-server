@@ -13,6 +13,7 @@
 
 # === IDE 配置 ===
 .idea/
+.claude
 .vscode/
 *.swp
 
