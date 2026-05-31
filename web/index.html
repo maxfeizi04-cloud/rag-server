@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>企业知识库问答系统</title>
+    <style>
+        /* ===== 全局样式 ===== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: #0d1117; color: #c9d1d9; line-height: 1.6;
+        }
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+
+        /* ===== 标题 ===== */
+        h1 { color: #58a6ff; margin-bottom: 20px; font-size: 1.5rem; }
+        h2 { color: #8b949e; font-size: 1rem; margin: 16px 0 8px; }
+
+        /* ===== 卡片 ===== */
+        .card {
+            background: #161b22; border: 1px solid #30363d;
+            border-radius: 8px; padding: 16px; margin-bottom: 16px;
+        }
+
+        /* ===== 表单元素 ===== */
+        input, textarea, select, button {
+            background: #0d1117; color: #c9d1d9;
+            border: 1px solid #30363d; border-radius: 6px;
+            padding: 8px 12px; font-size: 14px; margin: 4px;
+        }
+        button {
+            background: #238636; color: #fff; cursor: pointer; margin-right: 8px;
+        }
+        button:hover { background: #2ea043; }
+        button.danger { background: #da3633; }
+        button.danger:hover { background: #f85149; }
+        input[type="file"] { padding: 6px; }
+
+        /* ===== 聊天区域 ===== */
+        #chat-box {
+            height: 400px; overflow-y: auto; border: 1px solid #30363d;
+            border-radius: 6px; padding: 12px; margin-bottom: 12px; background: #0d1117;
+        }
+        .msg { margin-bottom: 12px; padding: 8px 12px; border-radius: 6px; }
+        .msg.user { background: #1f6feb22; }
+        .msg.assistant { background: #161b22; }
+        .msg .role { font-size: 0.8rem; color: #8b949e; margin-bottom: 4px; }
+
+        /* ===== 引用来源 ===== */
+        .sources {
+            font-size: 0.78rem; color: #8b949e; margin-top: 6px;
+            padding: 6px; background: #0d1117; border-radius: 4px;
+        }
+
+        /* ===== 列表项 ===== */
+        .list-item {
+            padding: 8px; border-bottom: 1px solid #21262d;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        /* ===== 文档状态标签 ===== */
+        .status {
+            font-size: 0.75rem; padding: 2px 8px; border-radius: 10px;
+        }
+        .status.completed { background: #23863633; color: #3fb950; }
+        .status.pending, .status.parsing, .status.chunking, .status.embedding {
+            background: #d2992233; color: #d29922;
+        }
+        .status.failed { background: #da363333; color: #f85149; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📚 企业知识库问答系统</h1>
+
+    <!-- ========================================= -->
+    <!-- 知识库管理 -->
+    <!-- ========================================= -->
+    <div class="card">
+        <h2>创建知识库</h2>
+        <input id="kb-name" placeholder="知识库名称" size="20">
+        <input id="kb-desc" placeholder="描述（可选）" size="30">
+        <button onclick="createKB()">创建</button>
+        <button onclick="listKBs()">刷新列表</button>
+        <div id="kb-list"></div>
+    </div>
+
+    <!-- ========================================= -->
+    <!-- 文档上传 -->
+    <!-- ========================================= -->
+    <div class="card">
+        <h2>上传文档</h2>
+        <select id="kb-select"><option value="">— 请先选择知识库 —</option></select>
+        <input type="file" id="file-input" multiple accept=".pdf,.docx,.md,.txt">
+        <button onclick="uploadDoc()">上传</button>
+        <div id="doc-list"></div>
+    </div>
+
+    <!-- ========================================= -->
+    <!-- 问答对话 -->
+    <!-- ========================================= -->
+    <div class="card">
+        <h2>问答对话</h2>
+        <select id="chat-kb-select" onchange="listConversations()">
+            <option value="">— 选择知识库 —</option>
+        </select>
+        <select id="conv-select"><option value="">— 选择或创建对话 —</option></select>
+        <button onclick="createConv()">新建对话</button>
+        <div id="chat-box"></div>
+        <input id="question" placeholder="输入问题，按 Enter 发送..." style="width:calc(100% - 80px);"
+               onkeydown="if(event.key==='Enter')askQuestion()">
+        <button onclick="askQuestion()" style="width:60px;">发送</button>
+    </div>
+</div>
+
+<script>
+    // ===============================================================
+    // 全局变量
+    // ===============================================================
+    const API = '/api/v1';  // API 基础路径
+
+    // ===============================================================
+    // 工具函数：封装 fetch 请求
+    // ===============================================================
+    async function api(method, path, body) {
+        const opts = { method, headers: {} };
+        // 根据 body 类型设置 Content-Type
+        if (body && !(body instanceof FormData)) {
+            opts.headers['Content-Type'] = 'application/json';
+            opts.body = JSON.stringify(body);
+        } else if (body instanceof FormData) {
+            opts.body = body; // FormData 自动设置 Content-Type（含 boundary）
+        }
+        const r = await fetch(API + path, opts);
+        return r.json(); // 所有响应都是 JSON 格式
+    }
+
+    // ===============================================================
+    // 知识库管理
+    // ===============================================================
+    async function createKB() {
+        const name = document.getElementById('kb-name').value.trim();
+        const description = document.getElementById('kb-desc').value.trim();
+        if (!name) return alert('请输入知识库名称');
+        await api('POST', '/knowledge-bases', { name, description });
+        document.getElementById('kb-name').value = '';
+        document.getElementById('kb-desc').value = '';
+        listKBs();
+    }
+
+    async function listKBs() {
+        const res = await api('GET', '/knowledge-bases?page=1&page_size=50');
+        const data = res.data || {};
+        const list = data.list || [];
+        let html = '';
+        list.forEach(kb => {
+            html += `<div class="list-item">
+      <span><strong>${kb.name}</strong> ${kb.description ? '- ' + kb.description : ''}</span>
+      <button class="danger" onclick="deleteKB('${kb.id}')">删除</button>
+    </div>`;
+        });
+        document.getElementById('kb-list').innerHTML = html || '<p>暂无知识库，请创建</p>';
+
+        // 同时更新两个下拉框（文档上传区和问答区）
+        let opts = '<option value="">— 请选择知识库 —</option>';
+        list.forEach(kb => { opts += `<option value="${kb.id}">${kb.name}</option>`; });
+        document.getElementById('kb-select').innerHTML = opts;
+        document.getElementById('chat-kb-select').innerHTML = opts;
+    }
+
+    async function deleteKB(id) {
+        if (!confirm('确定删除此知识库？所有关联的文档、对话都会被永久删除。')) return;
+        await api('DELETE', '/knowledge-bases/' + id);
+        listKBs();
+    }
+
+    // ===============================================================
+    // 文档管理
+    // ===============================================================
+    async function uploadDoc() {
+        const kbId = document.getElementById('kb-select').value;
+        if (!kbId) return alert('请先选择一个知识库');
+        const files = document.getElementById('file-input').files;
+        if (!files.length) return alert('请选择要上传的文件');
+
+        for (const f of files) {
+            const fd = new FormData();
+            fd.append('file', f); // 字段名必须是 'file'，与后端对应
+            await fetch(API + '/knowledge-bases/' + kbId + '/documents', { method: 'POST', body: fd });
+        }
+        listDocs(kbId);
+    }
+
+    async function listDocs(kbId) {
+        if (!kbId) return;
+        const res = await api('GET', '/knowledge-bases/' + kbId + '/documents?page=1&page_size=50');
+        const data = res.data || {};
+        const list = data.list || [];
+
+        let html = '';
+        list.forEach(d => {
+            // 根据状态显示不同颜色的状态标签
+            html += `<div class="list-item">
+      <span>📄 ${d.filename}</span>
+      <span class="status ${d.status}">${statusLabel(d.status)}</span>
+      <button class="danger" onclick="deleteDoc('${d.id}')">删除</button>
+    </div>`;
+        });
+        document.getElementById('doc-list').innerHTML = html || '<p>暂无文档</p>';
+    }
+
+    // 状态中英文映射
+    function statusLabel(s) {
+        const map = { pending:'等待处理', parsing:'解析中', chunking:'切分中',
+            embedding:'向量化中', completed:'已完成', failed:'失败' };
+        return map[s] || s;
+    }
+
+    // 切换知识库时刷新文档列表
+    document.getElementById('kb-select').addEventListener('change', function() {
+        listDocs(this.value);
+    });
+
+    async function deleteDoc(id) {
+        if (!confirm('确定删除此文档？')) return;
+        await api('DELETE', '/documents/' + id);
+        const kbId = document.getElementById('kb-select').value;
+        listDocs(kbId);
+    }
+
+    // ===============================================================
+    // 对话管理
+    // ===============================================================
+    async function createConv() {
+        const kbId = document.getElementById('chat-kb-select').value;
+        if (!kbId) return alert('请先选择知识库');
+        await api('POST', '/conversations', { kb_id: kbId });
+        listConversations();
+    }
+
+    async function listConversations() {
+        const kbId = document.getElementById('chat-kb-select').value;
+        if (!kbId) return;
+        const res = await api('GET', '/conversations?kb_id=' + kbId + '&page=1&page_size=50');
+        const data = res.data || {};
+        const list = data.list || [];
+        let opts = '<option value="">— 选择对话 —</option>';
+        list.forEach(c => { opts += `<option value="${c.id}">${c.title}</option>`; });
+        document.getElementById('conv-select').innerHTML = opts;
+    }
+
+    document.getElementById('chat-kb-select').addEventListener('change', function() {
+        listConversations();
+    });
+
+    // 切换对话时加载历史消息
+    document.getElementById('conv-select').addEventListener('change', async function() {
+        const id = this.value;
+        if (!id) return;
+        const res = await api('GET', '/conversations/' + id + '/messages?page=1&page_size=50');
+        const data = res.data || {};
+        const msgs = data.list || [];
+        const box = document.getElementById('chat-box');
+        box.innerHTML = ''; // 清空聊天区域
+        // 消息是倒序的（最新在前），需要反转
+        msgs.reverse().forEach(m => {
+            appendMsg(m.role, m.content, m.sources);
+        });
+    });
+
+    // ===============================================================
+    // 核心：SSE 流式问答
+    // ===============================================================
+    async function askQuestion() {
+        const convId = document.getElementById('conv-select').value;
+        const question = document.getElementById('question').value.trim();
+        if (!convId || !question) return alert('请选择对话并输入问题');
+
+        // 清空输入框
+        document.getElementById('question').value = '';
+
+        // 显示用户消息
+        appendMsg('user', question);
+
+        // 创建一个空的助手消息容器，后续逐 token 填充
+        let assistantDiv = appendMsg('assistant', '⏳ 思考中...');
+
+        try {
+            // 发起 SSE 请求
+            const resp = await fetch(API + '/conversations/' + convId + '/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question }),
+            });
+
+            // 使用 ReadableStream 读取 SSE 流
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder(); // 将字节流解码为文本
+            let buffer = ''; // 缓冲区，处理不完整的数据行
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break; // 流结束
+
+                // 解码新收到的字节
+                buffer += decoder.decode(value, { stream: true });
+
+                // SSE 数据以 "\n\n" 分隔每条消息
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || ''; // 最后一部分可能不完整，留在缓冲区
+
+                let eventType = ''; // 当前 SSE 事件类型
+                for (const line of lines) {
+                    if (line.startsWith('event: ')) {
+                        // 记录事件类型：sources / delta / done / error
+                        eventType = line.slice(7).trim();
+                    } else if (line.startsWith('data: ')) {
+                        const data = JSON.parse(line.slice(6)); // 解析 JSON 数据
+                        if (eventType === 'sources' && data.chunks) {
+                            // 显示检索到的参考资料
+                            let srcHtml = '<div class="sources"><strong>📎 引用来源：</strong>';
+                            data.chunks.forEach(c => {
+                                srcHtml += `<br/>【${c.doc}】${c.content.substring(0, 100)}...
+                          (相关度: ${(c.score * 100).toFixed(0)}%)`;
+                            });
+                            srcHtml += '</div>';
+                            // 如果是第一条消息（assistantDiv 内容为 "思考中..."），先清空
+                            if (assistantDiv.innerHTML.includes('思考中')) {
+                                assistantDiv.innerHTML = '';
+                            }
+                            assistantDiv.innerHTML += srcHtml;
+                        } else if (eventType === 'delta') {
+                            // 追加增量文本（LLM 逐 token 生成）
+                            if (assistantDiv.innerHTML.includes('思考中')) {
+                                assistantDiv.innerHTML = ''; // 清除占位文字
+                            }
+                            assistantDiv.innerHTML += data.content;
+                        }
+                        eventType = '';
+                    }
+                }
+            }
+        } catch (err) {
+            assistantDiv.innerHTML = '❌ 请求失败: ' + err.message;
+        }
+    }
+
+    // ===============================================================
+    // 辅助函数：在聊天框添加消息
+    // ===============================================================
+    function appendMsg(role, content, sources) {
+        const box = document.getElementById('chat-box');
+        const div = document.createElement('div');
+        div.className = 'msg ' + role;
+        div.innerHTML = `<div class="role">${role === 'user' ? '🧑 你' : '🤖 助手'}</div>
+                   <div class="content">${content}</div>`;
+        // 如果有引用来源，展示在消息下方
+        if (sources) {
+            let s;
+            try { s = JSON.parse(sources); } catch(e) { s = sources; }
+            let srcHtml = '<div class="sources"><strong>📎 引用：</strong>';
+            (Array.isArray(s) ? s : []).forEach(c => {
+                srcHtml += `【${c.doc}】 `;
+            });
+            srcHtml += '</div>';
+            div.innerHTML += srcHtml;
+        }
+        box.appendChild(div);
+        // 自动滚动到底部
+        box.scrollTop = box.scrollHeight;
+        return div.querySelector('.content');
+    }
+
+    // ===============================================================
+    // 页面初始化：加载知识库列表
+    // ===============================================================
+    listKBs();
+</script>
+</body>
+</html>
