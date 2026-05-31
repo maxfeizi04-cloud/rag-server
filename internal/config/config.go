@@ -56,7 +56,7 @@ type DeepSeekConfig struct {
 type RAGConfig struct {
 	ChunkSize           int     `mapstructure:"chunk_size"`           // 每个文本切片的 token 数上限
 	ChunkOverlap        int     `mapstructure:"chunk_overlap"`        // 相邻切片之间的重叠 token shu
-	Topk                int     `mapstructure:"top_k"`                // 检索返回的最相关片段数量
+	TopK                int     `mapstructure:"top_k"`                // 检索返回的最相关片段数量
 	SimilarityThreshold float64 `mapstructure:"similarity_threshold"` // 余弦相似度最低阈值(0~1)
 	MaxHistoryRounds    int     `mapstructure:"max_history_rounds"`   // 对话历史保留轮数
 	SystemPrompt        string  `mapstructure:"system_prompt"`        // System Prompt 模板
@@ -136,6 +136,6 @@ func Load(configPath string) (*Config, error) {
 	if cfg.Database.Password == "" {
 		cfg.Database.Password = v.GetString("database.password")
 	}
-	
+
 	return &cfg, nil
 }

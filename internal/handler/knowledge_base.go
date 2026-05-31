@@ -6,18 +6,8 @@ import (
 	"rag-server/internal/model"
 	"rag-server/internal/service"
 	"strconv"
-)
 
-package handler
-
-import (
-"encoding/json"
-"net/http"
-"rag-server/internal/model"
-"rag-server/internal/service"
-"strconv"
-
-"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5"
 )
 
 // KnowledgeBaseHandler 知识库 HTTP 处理器

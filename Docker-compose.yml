@@ -1,0 +1,62 @@
+# ============================================================
+# 企业知识库问答系统 — Docker Compose 编排
+# ============================================================
+# 启动前创建 .env 文件：
+#   DB_PASSWORD=your_db_password
+#   DEEPSEEK_API_KEY=sk-your-api-key
+#
+# 启动命令：
+#   docker compose up -d
+#
+# 查看日志：
+#   docker compose logs -f rag-server
+# ============================================================
+
+services:
+  # ==========================================================
+  # PostgreSQL + pgvector
+  # ==========================================================
+  postgres:
+    image: pgvector/pgvector:pg17  # 官方 pgvector 镜像，基于 PostgreSQL 17
+    container_name: rag-postgres
+    environment:
+      POSTGRES_DB: rag              # 自动创建数据库
+      POSTGRES_USER: rag_user       # 数据库用户
+      POSTGRES_PASSWORD: ${DB_PASSWORD}  # 密码来自 .env 文件
+    volumes:
+      # 数据持久化到宿主机，容器重启不丢数据
+      - ./data/postgres:/var/lib/postgresql/data
+      # 启动时自动执行迁移脚本
+      - ./migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "127.0.0.1:5432:5432"  # 仅本地访问，不暴露到公网
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "rag_user"]
+      interval: 10s    # 每 10 秒检查一次
+      timeout: 5s      # 单次检查超时 5 秒
+      retries: 5       # 连续失败 5 次判定为不健康
+    restart: unless-stopped  # 除非手动停止，否则自动重启
+
+  # ==========================================================
+  # Go RAG 服务
+  # ==========================================================
+  rag-server:
+    build: .                # 使用当前目录的 Dockerfile 构建
+    container_name: rag-server
+    environment:
+      CONFIG_PATH: /app/config.yaml     # 配置文件路径
+      DB_PASSWORD: ${DB_PASSWORD}       # 数据库密码（来自 .env）
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}  # API 密钥（来自 .env）
+    ports:
+      - "127.0.0.1:8080:8080"  # 仅本地访问
+    volumes:
+      # 上传文件持久化
+      - ./data/uploads:/app/data/uploads
+      # 应用日志持久化
+      - ./data/logs:/app/logs
+      # 配置文件以只读方式挂载
+      - ./config.yaml:/app/config.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy  # 等 PostgreSQL 健康检查通过后再启动
+    restart: unless-stopped
